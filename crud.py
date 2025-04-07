@@ -34,7 +34,23 @@ async def init(db: aiosqlite.Connection):
     )
     await db.execute(
         """
+    CREATE TABLE IF NOT EXISTS pages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        document_id INTEGER NOT NULL,
+        page INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        FOREIGN KEY (document_id) REFERENCES documents(id)
+    )
+    """
+    )
+    await db.execute(
+        """
     CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_name ON documents(name)
+    """
+    )
+    await db.execute(
+        """
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pages_document_page ON pages(document_id, page)
     """
     )
     await db.commit()
@@ -59,9 +75,22 @@ async def get_documents(db: aiosqlite.Connection) -> aiosqlite.Row:
     rows = await cursor.fetchall()
     return rows
 
+async def get_document_pages(db: aiosqlite.Connection, document_id: int) -> aiosqlite.Row:
+    cursor = await db.execute("""
+    SELECT * from pages 
+    WHERE document_id = ?
+    """, (document_id,))
+    rows = await cursor.fetchall()
+    return rows
 
 # schemas
 class Document(TypedDict):
     id: int
     name: str
     href: str
+
+class Page(TypedDict):
+    id: int
+    document_id: str
+    page: int
+    name: str
