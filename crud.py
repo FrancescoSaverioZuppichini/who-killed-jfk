@@ -42,7 +42,7 @@ async def init(db: aiosqlite.Connection):
 
 async def add_documents_from_links(db: aiosqlite.Connection, links: list[str]):
     # let's extract the name for each link
-    names = list(map(lambda link: os.path.basename(urlparse(link).path), links))
+    names = list(map(lambda link: os.path.basename(urlparse(link).path).strip(), links))
     values = list(zip(names, links))
 
     try:
@@ -52,6 +52,12 @@ async def add_documents_from_links(db: aiosqlite.Connection, links: list[str]):
         logger.warning(
             f"️💾 Some documents already exist in the database, clean the db and retry: {e}"
         )
+
+
+async def get_documents(db: aiosqlite.Connection) -> aiosqlite.Row:
+    cursor = await db.execute("SELECT * from documents")
+    rows = await cursor.fetchall()
+    return rows
 
 
 # schemas

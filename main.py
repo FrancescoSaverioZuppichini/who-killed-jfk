@@ -2,9 +2,9 @@ import aiofiles
 from dotenv import load_dotenv
 from os import environ
 from pathlib import Path
-from crud import add_documents_from_links, get_db
+from crud import add_documents_from_links, get_db, get_documents
 from logger import logger
-from scrape import scrape_documents_links
+from scrape import download_documents, scrape_documents_links
 import asyncio
 
 from utils import create_csv
@@ -35,6 +35,9 @@ async def main():
     logger.info(f"✅ added to the database")
     await create_csv("data.csv", db)
     logger.info(f"✅ created .csv")
+    documents = await get_documents(db)
+    logger.info(f"⬇️ dowloading {len(documents)} documents")
+    await download_documents([doc["href"] for doc in documents], out_dir=FILES_DIR)
     await db.close()
     return
 

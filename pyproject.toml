@@ -9,6 +9,9 @@ dependencies = [
     "aiosqlite>=0.21.0",
     "beautifulsoup4>=4.13.3",
     "httpx>=0.28.1",
+    "pymupdf>=1.25.4",
     "python-dotenv>=1.0.1",
     "rich>=13.9.4",
+    "tenacity>=9.0.0",
+    "tqdm>=4.67.1",
 ]
