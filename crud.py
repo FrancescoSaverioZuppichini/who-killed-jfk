@@ -8,17 +8,29 @@ import sqlite3
 _connection: Optional[aiosqlite.Connection] = None
 
 
+# schemas
+class Document(TypedDict):
+    id: int
+    name: str
+    href: str
+
+
+class Page(TypedDict):
+    id: int
+    document_id: str
+    page: int
+    name: str
+
+
 async def get_db(db_path: str) -> aiosqlite.Connection:
     global _connection
     if _connection and not _connection.close:
         return _connection
-    logger.info(f"💾 init db @{db_path} ...")
     _connection = await aiosqlite.connect(db_path)
     await _connection.execute("PRAGMA foreign_keys = ON")
     # This shit returns rows in a dictionary instead of shitty tuples
     _connection.row_factory = aiosqlite.Row
     await init(_connection)
-    logger.info(f"✅ done!")
     return _connection
 
 
@@ -38,7 +50,7 @@ async def init(db: aiosqlite.Connection):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         document_id INTEGER NOT NULL,
         page INTEGER NOT NULL,
-        name TEXT NOT NULL,
+        name TEXT NOT NULL UNIQUE,
         FOREIGN KEY (document_id) REFERENCES documents(id)
     )
     """
@@ -75,22 +87,51 @@ async def get_documents(db: aiosqlite.Connection) -> aiosqlite.Row:
     rows = await cursor.fetchall()
     return rows
 
-async def get_document_pages(db: aiosqlite.Connection, document_id: int) -> aiosqlite.Row:
-    cursor = await db.execute("""
+
+async def get_document_pages(
+    db: aiosqlite.Connection, document_id: int
+) -> aiosqlite.Row:
+    cursor = await db.execute(
+        """
     SELECT * from pages 
     WHERE document_id = ?
-    """, (document_id,))
+    """,
+        (document_id,),
+    )
     rows = await cursor.fetchall()
     return rows
 
-# schemas
-class Document(TypedDict):
-    id: int
-    name: str
-    href: str
 
-class Page(TypedDict):
-    id: int
-    document_id: str
-    page: int
-    name: str
+async def add_page(db: aiosqlite.Connection, page: Page):
+    try:
+        await db.execute(
+            "INSERT INTO pages (document_id, page, name) VALUES (?, ?, ?)",
+            (page["document_id"], page["page"], page["name"]),
+        )
+        await db.commit()
+    except sqlite3.IntegrityError as e:
+        logger.warning(f"💾 Page already exists in the database: {e}")
+
+
+async def add_pages(db: aiosqlite.Connection, pages: list[Page]):
+    try:
+        async with db.execute("BEGIN TRANSACTION"):
+            values = [
+                (page["document_id"], page["page"], page["name"]) for page in pages
+            ]
+            await db.executemany(
+                "INSERT INTO pages (document_id, page, name) VALUES (?, ?, ?)", values
+            )
+
+        await db.commit()
+
+    except sqlite3.IntegrityError as e:
+        await db.rollback()
+        logger.warning(f"💾 Error adding pages to database: {e}")
+
+        logger.info("💾 Falling back to adding pages individually")
+        for page in pages:
+            try:
+                await add_page(db, page)
+            except Exception as e:
+                logger.error(f"💾 Failed to add page {page['name']}: {e}")
